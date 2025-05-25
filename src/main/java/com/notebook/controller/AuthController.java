@@ -28,7 +28,7 @@ public class AuthController {
     @PostMapping("/register")
     public String register(@ModelAttribute User user, Model model) {
         if (userRepo.findByUsername(user.getUsername()) != null) {
-            model.addAttribute("error", "Користувач з таким ім'ям вже існує!");
+            model.addAttribute("error", "A user with that name already exists.!");
             return "register";
         }
         user.setPassword(encoder.encode(user.getPassword()));
