@@ -10,6 +10,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Comparator;
 import java.util.List;
 
 @Controller
@@ -31,12 +32,13 @@ public class WebController {
             @RequestParam(required = false) String email,
             @RequestParam(required = false) String address,
             @RequestParam(required = false) String workplace,
+            @RequestParam(required = false, defaultValue = "id") String sort,
+            @RequestParam(required = false, defaultValue = "asc") String dir,
             Model model) {
 
         User user = userRepo.findByUsername(userDetails.getUsername());
 
         List<Note> notes = noteRepo.findByUser(user);
-
         if (lastName != null && !lastName.isBlank())
             notes.retainAll(noteRepo.findByUserAndLastNameContainingIgnoreCase(user, lastName));
         if (phone != null && !phone.isBlank())
@@ -50,6 +52,21 @@ public class WebController {
 
         model.addAttribute("notes", notes);
         model.addAttribute("filters", new Note());
+        model.addAttribute("sort", sort);
+        model.addAttribute("dir", dir);
+
+        Comparator<Note> comparator = switch (sort) {
+            case "lastName" -> Comparator.comparing(Note::getLastName, String.CASE_INSENSITIVE_ORDER);
+            case "firstName" -> Comparator.comparing(Note::getFirstName, String.CASE_INSENSITIVE_ORDER);
+            case "email" -> Comparator.comparing(Note::getEmail, String.CASE_INSENSITIVE_ORDER);
+            case "phone" -> Comparator.comparing(Note::getPhone);
+            case "birthDate" -> Comparator.comparing(Note::getBirthDate);
+            default -> Comparator.comparing(Note::getId);
+        };
+        if ("desc".equalsIgnoreCase(dir)) {
+            comparator = comparator.reversed();
+        }
+        notes.sort(comparator);
         return "index";
     }
 
@@ -58,6 +75,26 @@ public class WebController {
         User user = userRepo.findByUsername(userDetails.getUsername());
         note.setUser(user);
         noteRepo.save(note);
+        return "redirect:/";
+    }
+
+    @GetMapping("/notes/{id}/edit")
+    public String editNoteForm(@PathVariable Long id, Model model, @AuthenticationPrincipal UserDetails userDetails) {
+        Note note = noteRepo.findById(id).orElse(null);
+        if (note != null && note.getUser().getUsername().equals(userDetails.getUsername())) {
+            model.addAttribute("note", note);
+            return "edit";
+        }
+        return "redirect:/";
+    }
+
+    @PostMapping("/notes/{id}/update")
+    public String updateNote(@ModelAttribute Note note, @AuthenticationPrincipal UserDetails userDetails) {
+        Note existingNote = noteRepo.findById(note.getId()).orElse(null);
+        if (existingNote != null && existingNote.getUser().getUsername().equals(userDetails.getUsername())) {
+            note.setUser(existingNote.getUser());
+            noteRepo.save(note);
+        }
         return "redirect:/";
     }
 
